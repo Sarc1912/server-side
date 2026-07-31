@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Product } from '../products/entities/product.entity'; // Ajusta la ruta según tu estructura
 import { ProductSpecification } from '../../entities/ProductSpecification';
+import { Product } from '../../entities/Product';
 
 @Injectable()
 export class ProductSpecificationsService {
