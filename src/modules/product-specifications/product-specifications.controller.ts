@@ -5,7 +5,7 @@ import { UpdateProductSpecificationDto } from './dto/update-product-specificatio
 
 @Controller('product-specifications')
 export class ProductSpecificationsController {
-  constructor(private readonly productSpecificationsService: ProductSpecificationsService) {}
+  constructor(private readonly productSpecificationsService: ProductSpecificationsService) { }
 
   @Post()
   create(@Body() createProductSpecificationDto: CreateProductSpecificationDto) {
@@ -15,6 +15,11 @@ export class ProductSpecificationsController {
   @Get()
   findAll() {
     return this.productSpecificationsService.findAll();
+  }
+
+  @Get('product/:productId')
+  findByProductId(@Param('productId') productId: string) {
+    return this.productSpecificationsService.findByProductId(+productId);
   }
 
   @Get(':id')

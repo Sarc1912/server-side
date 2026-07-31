@@ -9,9 +9,34 @@ import {
     Length,
     IsEnum,
     IsObject,
-    Min
+    Min,
+    IsUrl,
+    IsBoolean,
+    IsArray,
+    ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ProductStatus } from '../../../entities/Product';
+
+export class CreateProductImageDto {
+    @IsString()
+    @IsNotEmpty()
+    url: string;
+
+    @IsString()
+    @MaxLength(255)
+    @IsOptional()
+    altText?: string;
+
+    @IsInt()
+    @Min(0)
+    @IsOptional()
+    order?: number;
+
+    @IsBoolean()
+    @IsOptional()
+    isMain?: boolean;
+}
 
 export class CreateProductDto {
     @IsInt()
@@ -50,4 +75,11 @@ export class CreateProductDto {
     @IsObject()
     @IsOptional()
     attributes?: Record<string, any>;
+
+    // Arreglo opcional de imágenes con validación anidada
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => CreateProductImageDto)
+    @IsOptional()
+    images?: CreateProductImageDto[];
 }

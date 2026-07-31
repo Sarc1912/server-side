@@ -1,26 +1,92 @@
-import { Injectable } from '@nestjs/common';
-import { CreateProductSpecificationDto } from './dto/create-product-specification.dto';
-import { UpdateProductSpecificationDto } from './dto/update-product-specification.dto';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Product } from '../products/entities/product.entity'; // Ajusta la ruta según tu estructura
+import { ProductSpecification } from '../../entities/ProductSpecification';
 
 @Injectable()
 export class ProductSpecificationsService {
-  create(createProductSpecificationDto: CreateProductSpecificationDto) {
-    return 'This action adds a new productSpecification';
+  constructor(
+    @InjectRepository(ProductSpecification)
+    private readonly specRepository: Repository<ProductSpecification>,
+    @InjectRepository(Product)
+    private readonly productRepository: Repository<Product>,
+  ) { }
+
+  async create(createDto: { productId: number; specifications: Array<{ specKey: string; specValue: string }> }) {
+    const { productId, specifications } = createDto;
+
+    const product = await this.productRepository.findOne({ where: { id: productId } });
+    if (!product) {
+      throw new NotFoundException(`Producto con ID ${productId} no encontrado`);
+    }
+
+    await this.specRepository.delete({ productId });
+
+    const specsToSave = specifications.map(spec =>
+      this.specRepository.create({
+        productId,
+        specKey: spec.specKey,
+        specValue: spec.specValue,
+      })
+    );
+
+    return await this.specRepository.save(specsToSave);
   }
 
-  findAll() {
-    return `This action returns all productSpecifications`;
+  // Método update implementado
+  async update(productId: number, updateDto: { specifications?: Array<{ specKey: string; specValue: string }> }) {
+    const { specifications } = updateDto;
+
+    const product = await this.productRepository.findOne({ where: { id: productId } });
+    if (!product) {
+      throw new NotFoundException(`Producto con ID ${productId} no encontrado`);
+    }
+
+    // Si no se envían especificaciones, puedes retornar el producto o hacer un retorno anticipado
+    if (!specifications) {
+      return product;
+    }
+
+    await this.specRepository.delete({ productId });
+
+    const specsToSave = specifications.map(spec =>
+      this.specRepository.create({
+        product: { id: productId },
+        specKey: spec.specKey,
+        specValue: spec.specValue,
+      })
+    );
+
+    return await this.specRepository.save(specsToSave);
+  }
+  async findAll() {
+    return await this.specRepository.find();
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} productSpecification`;
+  async findOne(id: number) {
+    const spec = await this.specRepository.findOne({ where: { id } });
+    if (!spec) {
+      throw new NotFoundException(`Especificación con ID ${id} no encontrada`);
+    }
+    return spec;
   }
 
-  update(id: number, updateProductSpecificationDto: UpdateProductSpecificationDto) {
-    return `This action updates a #${id} productSpecification`;
+  async findByProductId(productId: number) {
+    // Opcional: Verificar si el producto existe antes de buscar sus especificaciones
+    const product = await this.productRepository.findOne({ where: { id: productId } });
+    if (!product) {
+      throw new NotFoundException(`Producto con ID ${productId} no encontrado`);
+    }
+
+    // Buscar todas las especificaciones que pertenezcan a este productId
+    return await this.specRepository.find({
+      where: { productId },
+    });
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} productSpecification`;
+  async remove(id: number) {
+    const spec = await this.findOne(id);
+    return await this.specRepository.remove(spec);
   }
 }

@@ -13,6 +13,7 @@ import { Category } from './Category';
 import { ProductSpecification } from './ProductSpecification';
 import { FinancingPlan } from './FinancingPlan';
 import { ColumnNumericTransformer } from '../../utils/database/ColumnTransformers';
+import { ProductImage } from './ProductImage';
 
 export enum ProductStatus {
     ACTIVE = 'active',
@@ -79,4 +80,7 @@ export class Product {
 
     @OneToMany(() => FinancingPlan, (plan) => plan.product, { cascade: true })
     financingPlans: FinancingPlan[];
+
+    @OneToMany(() => ProductImage, (image) => image.product, { cascade: true })
+    images: ProductImage[];
 }
