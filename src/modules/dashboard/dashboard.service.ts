@@ -1,15 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, MoreThanOrEqual, LessThan } from 'typeorm';
+import { Repository, Between, MoreThanOrEqual } from 'typeorm';
 import { User } from '../../entities/User';
 import { ActiveLoan, LoanStatus } from '../../entities/ActiveLoan';
 import { ApplicationStatus, LoanApplication } from '../../entities/LoanApplication';
-import { PaymentRecord } from '../../entities/PaymentRecord';
+import { PaymentRecord, PaymentStatus } from '../../entities/PaymentRecord';
 import { Product } from '../../entities/Product';
 import { InstallmentStatus, LoanScheduleItem } from '../../entities/LoanScheduleItem';
-
-// Importa tus entidades reales aquí
-
 
 @Injectable()
 export class DashboardService {
@@ -49,7 +46,7 @@ export class DashboardService {
       totalProducts,
       productsThisMonth,
 
-      overdueLoans
+      activeLoanIds
     ] = await Promise.all([
       // Usuarios
       this.userRepo.count(),
@@ -69,17 +66,16 @@ export class DashboardService {
       this.productRepo.count(),
       this.productRepo.count({ where: { createdAt: MoreThanOrEqual(startOfCurrentMonth) } }),
 
-      // Préstamos Vencidos (cuotas pasadas no pagadas)
-      this.scheduleRepo.count({ where: { paidAt: LessThan(now), status: InstallmentStatus.UNPAID } }),
+      // IDs de préstamos activos (para el estado de cartera)
+      this.activeLoanRepo.find({ select: { id: true }, where: { loanStatus: LoanStatus.ACTIVE } }),
     ]);
 
-    // 2. Calcular los ingresos (TypeORM QueryBuilder es más seguro para sumas monetarias)
+    // 2. Calcular los ingresos (pagos completados)
     const { sumThisMonth } = await this.paymentRepo
       .createQueryBuilder('payment')
       .select('SUM(payment.amountPaid)', 'sumThisMonth')
       .where('payment.createdAt >= :start', { start: startOfCurrentMonth })
-      // Opcional: filtrar por pagos exitosos
-      // .andWhere('payment.status = :status', { status: 'completed' })
+      .andWhere('payment.paymentStatus = :status', { status: PaymentStatus.COMPLETED })
       .getRawOne();
 
     const { sumLastMonth } = await this.paymentRepo
@@ -89,12 +85,16 @@ export class DashboardService {
         start: startOfLastMonth,
         end: endOfLastMonth
       })
+      .andWhere('payment.paymentStatus = :status', { status: PaymentStatus.COMPLETED })
       .getRawOne();
 
     const monthlyRevenue = parseFloat(sumThisMonth) || 0;
     const lastMonthRevenue = parseFloat(sumLastMonth) || 0;
 
-    // 3. Generar porcentajes y formatear respuesta
+    // 3. Estado de cartera (información real)
+    const portfolio = await this.buildPortfolioStats(activeLoanIds.map(l => l.id));
+
+    // 4. Generar porcentajes y formatear respuesta
     return {
       totalUsers,
       userTrend: this.calculateTrend(usersThisMonth, usersLastMonth, 'este mes'),
@@ -111,9 +111,123 @@ export class DashboardService {
       totalProducts,
       productTrend: { value: productsThisMonth, isUp: productsThisMonth > 0, text: `${productsThisMonth} nuevos` },
 
+      overdueLoans: portfolio.lateLoans + portfolio.overdueLoans,
+      overdueTrend: {
+        value: portfolio.avgDaysLate,
+        isUp: portfolio.avgDaysLate === 0,
+        text: portfolio.avgDaysLate > 0 ? `${portfolio.avgDaysLate} días promedio de atraso` : 'Cartera al día',
+      },
+
+      portfolio,
+    };
+  }
+
+  /**
+   * Calcula el estado real de la cartera a partir de los préstamos activos
+   * y sus cuotas (loan_schedule_items).
+   */
+  private async buildPortfolioStats(activeLoanIds: number[]) {
+    const ids = activeLoanIds;
+    if (ids.length === 0) {
+      return {
+        totalLoans: 0,
+        totalPrincipal: 0,
+        totalBalance: 0,
+        totalCollected: 0,
+        onTimeLoans: 0,
+        lateLoans: 0,
+        overdueLoans: 0,
+        onTimePercent: 0,
+        latePercent: 0,
+        overduePercent: 0,
+        avgDaysLate: 0,
+        recoveryRate: 0,
+        avgCreditScore: 0,
+      };
+    }
+
+    const [totals, scheduleTotals, avgCredit] = await Promise.all([
+      // Montos globales de la cartera
+      this.activeLoanRepo
+        .createQueryBuilder('loan')
+        .select('COUNT(loan.id)', 'totalLoans')
+        .addSelect('COALESCE(SUM(loan.principalAmount), 0)', 'totalPrincipal')
+        .addSelect('COALESCE(SUM(loan.remainingBalance), 0)', 'totalBalance')
+        .where('loan.loanStatus = :status', { status: LoanStatus.ACTIVE })
+        .getRawOne(),
+
+      // Montos programados vs pagados (para la tasa de recuperación)
+      this.scheduleRepo
+        .createQueryBuilder('item')
+        .select('COALESCE(SUM(item.amountDue), 0)', 'totalDue')
+        .addSelect('COALESCE(SUM(item.amountPaid), 0)', 'totalPaid')
+        .where('item.loanId IN (:...ids)', { ids })
+        .getRawOne(),
+
+      // Score de crédito promedio de clientes con préstamo activo
+      this.userRepo
+        .createQueryBuilder('user')
+        .innerJoin('user.loans', 'loan')
+        .where('loan.loanStatus = :status', { status: LoanStatus.ACTIVE })
+        .select('COALESCE(AVG(user.creditScore), 0)', 'avg')
+        .getRawOne(),
+    ]);
+
+    // Cuotas abiertas (no pagadas) de la cartera para medir días de atraso
+    const openItems = await this.scheduleRepo
+      .createQueryBuilder('item')
+      .select(['item.loanId', 'item.dueDate'])
+      .where('item.loanId IN (:...ids)', { ids })
+      .andWhere('item.status != :paid', { paid: InstallmentStatus.PAID })
+      .getRawMany();
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Días de atraso máximos por préstamo
+    const daysLateByLoan = new Map<number, number>();
+    for (const item of openItems) {
+      const due = new Date(`${item.dueDate}T00:00:00`);
+      const days = Math.floor((today.getTime() - due.getTime()) / 86400000);
+      if (days <= 0) continue;
+      const loanId = Number(item.loanId);
+      const current = daysLateByLoan.get(loanId) ?? 0;
+      if (days > current) daysLateByLoan.set(loanId, days);
+    }
+
+    let lateLoans = 0;
+    let overdueLoans = 0;
+    let daysLateSum = 0;
+    daysLateByLoan.forEach((days) => {
+      daysLateSum += days;
+      if (days < 30) lateLoans += 1;
+      else overdueLoans += 1;
+    });
+
+    const totalLoans = ids.length;
+    const onTimeLoans = totalLoans - daysLateByLoan.size;
+    const totalPrincipal = parseFloat(totals.totalPrincipal) || 0;
+    const totalBalance = parseFloat(totals.totalBalance) || 0;
+    const totalDue = parseFloat(scheduleTotals.totalDue) || 0;
+    const totalPaid = parseFloat(scheduleTotals.totalPaid) || 0;
+
+    const percent = (n: number) =>
+      totalLoans > 0 ? Number(((n / totalLoans) * 100).toFixed(1)) : 0;
+
+    return {
+      totalLoans,
+      totalPrincipal,
+      totalBalance,
+      totalCollected: Number((totalPrincipal - totalBalance).toFixed(2)),
+      onTimeLoans,
+      lateLoans,
       overdueLoans,
-      // Aquí podrías calcular "2 más que ayer" si guardas un historial, o dejarlo simple:
-      overdueTrend: { value: overdueLoans, isUp: false, text: 'Revisar urgentes' }
+      onTimePercent: percent(onTimeLoans),
+      latePercent: percent(lateLoans),
+      overduePercent: percent(overdueLoans),
+      avgDaysLate: daysLateByLoan.size > 0 ? Math.round(daysLateSum / daysLateByLoan.size) : 0,
+      recoveryRate: totalDue > 0 ? Number(((totalPaid / totalDue) * 100).toFixed(1)) : 0,
+      avgCreditScore: Math.round(parseFloat(avgCredit.avg) || 0),
     };
   }
 
