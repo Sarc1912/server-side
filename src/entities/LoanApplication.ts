@@ -12,6 +12,7 @@ import { User } from './User';
 import { FinancingPlan } from './FinancingPlan';
 import { ApplicationDocument } from './ApplicationDocument';
 import { ActiveLoan } from './ActiveLoan';
+import { LoanApplicationItem } from './LoanApplicationItem';
 import { ColumnNumericTransformer } from '../../utils/database/ColumnTransformers';
 
 export enum ApplicationStatus {
@@ -94,6 +95,9 @@ export class LoanApplication {
 
     @OneToMany(() => ApplicationDocument, (doc) => doc.application, { cascade: true })
     documents: ApplicationDocument[];
+
+    @OneToMany(() => LoanApplicationItem, (item) => item.application, { cascade: true })
+    items: LoanApplicationItem[];
 
     @OneToOne(() => ActiveLoan, (loan) => loan.application)
     activeLoan: ActiveLoan;

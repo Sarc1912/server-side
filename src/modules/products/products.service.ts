@@ -54,11 +54,16 @@ export class ProductsService {
       relations: {
         category: true,
         images: true,
+        financingPlans: true,
+        specifications: true,
       },
       order: {
         images: {
           order: 'ASC',
           id: 'ASC',
+        },
+        financingPlans: {
+          createdAt: 'ASC',
         },
       },
     });
@@ -70,11 +75,16 @@ export class ProductsService {
       relations: {
         category: true,
         images: true,
+        financingPlans: true,
+        specifications: true,
       },
       order: {
         images: {
           order: 'ASC',
           id: 'ASC',
+        },
+        financingPlans: {
+          createdAt: 'ASC',
         },
       },
     });

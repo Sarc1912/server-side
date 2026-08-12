@@ -33,7 +33,7 @@ export class UsersService {
   }
 
   async remove(id: number) {
-    await this.usersRepository.softDelete(id);
+    await this.usersRepository.delete(id);
     return true;
   }
 }

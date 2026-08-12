@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/commo
 import { LoanApplicationsService } from './loan-applications.service';
 import { CreateLoanApplicationDto } from './dto/create-loan-application.dto';
 import { UpdateLoanApplicationDto } from './dto/update-loan-application.dto';
+import { RejectLoanApplicationDto } from './dto/reject-loan-application.dto';
 
 @Controller('loan-applications')
 export class LoanApplicationsController {
@@ -10,6 +11,19 @@ export class LoanApplicationsController {
   @Post()
   create(@Body() createLoanApplicationDto: CreateLoanApplicationDto) {
     return this.loanApplicationsService.create(createLoanApplicationDto);
+  }
+
+  @Post(':id/approve')
+  approve(@Param('id') id: string) {
+    return this.loanApplicationsService.approve(+id);
+  }
+
+  @Post(':id/reject')
+  reject(
+    @Param('id') id: string,
+    @Body() rejectLoanApplicationDto: RejectLoanApplicationDto,
+  ) {
+    return this.loanApplicationsService.reject(+id, rejectLoanApplicationDto?.reason);
   }
 
   @Get()

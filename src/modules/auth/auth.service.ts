@@ -53,7 +53,7 @@ export class AuthService {
       throw new UnauthorizedException('Credenciales invalidas');
     }
 
-    const payload = { email: user.email, sub: user.id, role: user.status };
+    const payload = { email: user.email, sub: user.id, role: user.role };
 
     // Return user without password and the token
     const { password: _, ...result } = user;

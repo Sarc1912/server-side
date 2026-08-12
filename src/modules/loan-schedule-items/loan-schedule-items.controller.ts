@@ -17,6 +17,11 @@ export class LoanScheduleItemsController {
     return this.loanScheduleItemsService.findAll();
   }
 
+  @Get('loan/:loanId')
+  findByLoan(@Param('loanId') loanId: string) {
+    return this.loanScheduleItemsService.findByLoan(+loanId);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.loanScheduleItemsService.findOne(+id);

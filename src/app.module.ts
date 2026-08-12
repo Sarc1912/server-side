@@ -12,6 +12,8 @@ import { LateFeePenaltiesModule } from './modules/late-fee-penalties/late-fee-pe
 import { LoanApplicationsModule } from './modules/loan-applications/loan-applications.module';
 import { LoanScheduleItemsModule } from './modules/loan-schedule-items/loan-schedule-items.module';
 import { PaymentRecordsModule } from './modules/payment-records/payment-records.module';
+import { PaymentMethodsModule } from './modules/payment-methods/payment-methods.module';
+import { PaymentDataModule } from './modules/payment-data/payment-data.module';
 import { ProductSpecificationsModule } from './modules/product-specifications/product-specifications.module';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -20,7 +22,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 @Module({
   imports: [
     TypeOrmModule.forRoot(AppDataSource.options),
-    AuthModule, ProductsModule, ActiveLoansModule, ApplicationDocumentsModule, AuditLogsModule, CategoriesModule, FinancingPlansModule, LateFeePenaltiesModule, LoanApplicationsModule, LoanScheduleItemsModule, PaymentRecordsModule, ProductSpecificationsModule, UsersModule, DashboardModule
+    AuthModule, ProductsModule, ActiveLoansModule, ApplicationDocumentsModule, AuditLogsModule, CategoriesModule, FinancingPlansModule, LateFeePenaltiesModule, LoanApplicationsModule, LoanScheduleItemsModule, PaymentRecordsModule, PaymentMethodsModule, PaymentDataModule, ProductSpecificationsModule, UsersModule, DashboardModule
   ],
   controllers: [],
   providers: [],
