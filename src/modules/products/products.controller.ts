@@ -109,6 +109,17 @@ export class ProductsController {
     );
   }
 
+  @Patch(':id/status')
+  async updateStatus(
+    @Param('id') id: string,
+    @Body('status') status: string,
+  ) {
+    if (!status || !['active', 'sold', 'archived'].includes(status)) {
+      throw new BadRequestException('Estado inválido');
+    }
+    return this.productsService.updateStatus(+id, status);
+  }
+
   @Get()
   findAll() {
     return this.productsService.findAll();

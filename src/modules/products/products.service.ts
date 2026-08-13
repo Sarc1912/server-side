@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Product } from '../../entities/Product';
+import { Product, ProductStatus } from '../../entities/Product';
 import { ProductImage } from '../../entities/ProductImage';
 import { Repository } from 'typeorm';
 
@@ -156,6 +156,15 @@ export class ProductsService {
     }
 
     this.productRepo.merge(product, productData);
+    return await this.productRepo.save(product);
+  }
+
+  async updateStatus(id: number, status: string) {
+    const product = await this.productRepo.findOne({ where: { id } });
+    if (!product) {
+      throw new NotFoundException(`Producto con ID ${id} no encontrado`);
+    }
+    product.status = status as ProductStatus;
     return await this.productRepo.save(product);
   }
 

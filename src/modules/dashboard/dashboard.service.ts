@@ -176,7 +176,8 @@ export class DashboardService {
     // Cuotas abiertas (no pagadas) de la cartera para medir días de atraso
     const openItems = await this.scheduleRepo
       .createQueryBuilder('item')
-      .select(['item.loanId', 'item.dueDate'])
+      .select('item.loanId', 'loanId')
+      .addSelect('item.dueDate', 'dueDate')
       .where('item.loanId IN (:...ids)', { ids })
       .andWhere('item.status != :paid', { paid: InstallmentStatus.PAID })
       .getRawMany();
@@ -189,7 +190,7 @@ export class DashboardService {
     for (const item of openItems) {
       const due = new Date(`${item.dueDate}T00:00:00`);
       const days = Math.floor((today.getTime() - due.getTime()) / 86400000);
-      if (days <= 0) continue;
+      if (!Number.isFinite(days) || days <= 0) continue;
       const loanId = Number(item.loanId);
       const current = daysLateByLoan.get(loanId) ?? 0;
       if (days > current) daysLateByLoan.set(loanId, days);
